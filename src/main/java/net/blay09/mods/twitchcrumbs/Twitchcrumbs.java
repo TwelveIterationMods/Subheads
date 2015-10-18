@@ -1,6 +1,7 @@
 package net.blay09.mods.twitchcrumbs;
 
 import cpw.mods.fml.common.Mod;
+import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.common.config.Configuration;
@@ -16,7 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-@Mod(modid = "twitchcrumbs", name = "Twitchcrumbs")
+@Mod(modid = "twitchcrumbs", name = "Twitchcrumbs", dependencies = "required-after:headcrumbs")
 public class Twitchcrumbs {
 
     private static final Logger logger = LogManager.getLogger();
@@ -35,7 +36,7 @@ public class Twitchcrumbs {
     }
 
     @Mod.EventHandler
-    public void postInit(FMLPostInitializationEvent event) {
+    public void init(FMLInitializationEvent event) {
         // Load the whitelist from all sources
         List<String> list = new ArrayList<>();
         for(String source : whitelists) {
