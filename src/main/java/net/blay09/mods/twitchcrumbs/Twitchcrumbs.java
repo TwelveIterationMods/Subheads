@@ -1,7 +1,7 @@
 package net.blay09.mods.twitchcrumbs;
 
-import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
@@ -9,10 +9,16 @@ import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
+import cpw.mods.fml.common.registry.EntityRegistry;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.command.WrongUsageException;
+import net.minecraft.entity.EntityLiving;
+import net.minecraft.entity.EnumCreatureType;
+import net.minecraft.entity.monster.EntityZombie;
 import net.minecraft.util.ChatComponentText;
+import net.minecraft.world.biome.BiomeGenBase;
+import net.minecraftforge.common.BiomeDictionary;
 import net.minecraftforge.common.config.Configuration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,9 +28,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 @Mod(modid = "twitchcrumbs", name = "Twitchcrumbs", dependencies = "required-after:headcrumbs")
 public class Twitchcrumbs {
@@ -36,6 +40,7 @@ public class Twitchcrumbs {
 
     private final List<String> whitelists = new ArrayList<>();
     private boolean autoReload;
+    private boolean fixSpecialMobsSupport;
     private int reloadInterval;
 
     private String[] originalNames;
@@ -46,6 +51,7 @@ public class Twitchcrumbs {
         Configuration config = new Configuration(event.getSuggestedConfigurationFile());
         String[] sources = config.getStringList("sources", "general", new String[0], "One whitelist source link per line. Example: http://whitelist.twitchapps.com/list.php?id=12345");
         Collections.addAll(whitelists, sources);
+        fixSpecialMobsSupport = config.getBoolean("fixSpecialMobsSupport", "general", false, "SpecialMobs can cause Headcrumbs mobs not to spawn due to missing support in Headcrumbs. Setting this to true will fix that issue. You probably want to disable this once Headcrumbs has fixed the issue on their side.");
         autoReload = config.getBoolean("autoReload", "general", false, "Should the Twitchcrumbs automatically be reloaded in a specific interval? This will mean reading the remote file again and will reset Headcrumb's already-spawned list. The Creative Tab and NEI won't be updated until the game restarts, though.");
         reloadInterval = config.getInt("reloadInterval", "general", 60, 10, 60 * 12, "If autoReload is enabled, at what interval in minutes should the reload happen? (approximately, based oof TPS)") * 60 * 20;
         config.save();
@@ -58,6 +64,11 @@ public class Twitchcrumbs {
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         reloadTwitchCrumbs();
+    }
+
+    @Mod.EventHandler
+    public void postInit(FMLPostInitializationEvent event) {
+        fixSpecialMobsSupport();
     }
 
     @Mod.EventHandler
@@ -99,6 +110,53 @@ public class Twitchcrumbs {
         if(tickTimer > reloadInterval) {
             reloadTwitchCrumbs();
             tickTimer = 0;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void fixSpecialMobsSupport() {
+        if(!Loader.isModLoaded("SpecialMobs")) {
+            return;
+        }
+        try {
+            Class specialZombie = Class.forName("toast.specialMobs.entity.zombie.Entity_SpecialZombie");
+            Class headcrumbs = Class.forName("ganymedes01.headcrumbs.Headcrumbs");
+            if (headcrumbs.getField("enableHumanMobs").getBoolean(null)) {
+                List<BiomeDictionary.Type> blacklistedBiomes = Arrays.asList(BiomeDictionary.Type.MUSHROOM);
+                List<String> blacklistedBiomeNames = Arrays.asList("Tainted Land");
+
+                List<BiomeGenBase> biomes = new LinkedList<>();
+                biomeLoop: for (BiomeGenBase biome : BiomeGenBase.getBiomeGenArray()) {
+                    if (biome != null) {
+                        if (blacklistedBiomeNames.contains(biome.biomeName)) {
+                            continue;
+                        }
+
+                        for (BiomeDictionary.Type type : BiomeDictionary.getTypesForBiome(biome)) {
+                            if (blacklistedBiomes.contains(type)) {
+                                continue biomeLoop;
+                            }
+                        }
+
+                        for (Object obj : biome.getSpawnableList(EnumCreatureType.monster)) {
+                            if (obj instanceof BiomeGenBase.SpawnListEntry) {
+                                BiomeGenBase.SpawnListEntry entry = (BiomeGenBase.SpawnListEntry) obj;
+                                if (entry.entityClass == specialZombie) {
+                                    biomes.add(biome);
+                                    continue biomeLoop;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                int celebrityProb = headcrumbs.getField("celebrityProb").getInt(null);
+                int celebrityMin = headcrumbs.getField("celebrityMin").getInt(null);
+                int celebrityMax = headcrumbs.getField("celebrityMax").getInt(null);
+                EntityRegistry.addSpawn((Class<? extends EntityLiving>) Class.forName("ganymedes01.headcrumbs.entity.EntityHuman"), celebrityProb, celebrityMin, celebrityMax, EnumCreatureType.monster, biomes.toArray(new BiomeGenBase[biomes.size()]));
+            }
+        } catch (ClassNotFoundException | IllegalAccessException | NoSuchFieldException e) {
+            logger.error("Oops! Twitchcrumbs is not compatible with this version of Headcrumbs or SpecialMobs! Can't fix the spawning rules.", e);
         }
     }
 
