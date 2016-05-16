@@ -45,7 +45,7 @@ public class Twitchcrumbs {
         Configuration config = new Configuration(event.getSuggestedConfigurationFile());
         String[] sources = config.getStringList("sources", "general", new String[0], "One whitelist source link per line. Example: http://whitelist.twitchapps.com/list.php?id=12345");
         Collections.addAll(whitelists, sources);
-        cacheTime = config.getInt("cacheTime", "general", 60*60*24, 0, Integer.MAX_VALUE, "How long should the cache be used until updates are pulled? (if autoReload is false) (in seconds)")
+        cacheTime = config.getInt("cacheTime", "general", 60*60*24, 0, Integer.MAX_VALUE, "How long should the cache be used until updates are pulled? (if autoReload is false) (in seconds)");
         autoReload = config.getBoolean("autoReload", "general", false, "Should the Twitchcrumbs automatically be reloaded in a specific interval? This will mean reading the remote file again and will reset Headcrumb's already-spawned list. The Creative Tab and NEI won't be updated until the game restarts, though.");
         reloadInterval = config.getInt("reloadInterval", "general", 60, 10, 60 * 12, "If autoReload is enabled, at what interval in minutes should the reload happen? (approximately, based on TPS)") * 60 * 20;
         config.save();
