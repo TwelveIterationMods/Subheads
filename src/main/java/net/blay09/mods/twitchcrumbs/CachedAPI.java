@@ -1,6 +1,5 @@
 package net.blay09.mods.twitchcrumbs;
 
-import net.minecraft.client.Minecraft;
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
@@ -57,7 +56,7 @@ public class CachedAPI {
 	}
 
 	public static File getCacheDirectory() {
-		File file = new File(Minecraft.getMinecraft().mcDataDir, "twitchcrumbs-cache/");
+		File file = new File("twitchcrumbs-cache/");
 		//noinspection ResultOfMethodCallIgnored
 		file.mkdirs();
 		return file;

@@ -20,7 +20,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.net.URL;
 import java.util.*;
 
 @Mod(modid = "twitchcrumbs", name = "Twitchcrumbs", dependencies = "required-after:headcrumbs")
@@ -100,10 +99,12 @@ public class Twitchcrumbs {
             reloadTwitchCrumbs();
             firstTick = false;
         }
-        tickTimer++;
-        if(tickTimer > reloadInterval) {
-            reloadTwitchCrumbs();
-            tickTimer = 0;
+        if(autoReload) {
+            tickTimer++;
+            if (tickTimer > reloadInterval) {
+                reloadTwitchCrumbs();
+                tickTimer = 0;
+            }
         }
     }
 
