@@ -35,7 +35,7 @@ public class CachedAPI {
 	}
 
 	private static InputStream loadLocal(File file, boolean force, long maxCacheTime) {
-		if(file.exists() && (force || file.lastModified() - System.currentTimeMillis() < maxCacheTime)) {
+		if(file.exists() && (force || System.currentTimeMillis() - file.lastModified() < maxCacheTime)) {
 			try {
 				return new FileInputStream(file);
 			} catch (IOException e) {
