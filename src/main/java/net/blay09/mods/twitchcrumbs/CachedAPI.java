@@ -9,50 +9,44 @@ public class CachedAPI {
 
 	private static final long DEFAULT_CACHE_TIME = 1000*60*60*24;
 
-	public static InputStream loadCachedAPI(String url, String fileName) {
+	public static InputStream loadCachedAPI(String url, String fileName) throws IOException {
 		return loadCachedAPI(url, fileName, DEFAULT_CACHE_TIME);
 	}
 
-	public static InputStream loadCachedAPI(String url, String fileName, long maxCacheTime) {
+	public static InputStream loadCachedAPI(String url, String fileName, long maxCacheTime) throws IOException {
 		return loadCachedAPI(url, new File(getCacheDirectory(), fileName), maxCacheTime);
 	}
 
-	public static InputStream loadCachedAPI(String url, File cacheFile, long maxCacheTime) {
+	public static InputStream loadCachedAPI(String url, File cacheFile, long maxCacheTime) throws IOException {
 		InputStream in = loadLocal(cacheFile, false, maxCacheTime);
 		if(in == null) {
 			in = loadRemote(url);
 			if(in == null) {
 				in = loadLocal(cacheFile, true, maxCacheTime);
+				if(in == null) {
+					throw new IOException("Could not grab remote source and no local cache present.");
+				}
 			} else {
 				try {
 					IOUtils.copy(in, new FileOutputStream(cacheFile));
 				} catch (IOException e) {
-					e.printStackTrace();
+					Twitchcrumbs.logger.error("Failed to cache {}: {}", url, e);
 				}
 			}
 		}
 		return in;
 	}
 
-	private static InputStream loadLocal(File file, boolean force, long maxCacheTime) {
+	private static InputStream loadLocal(File file, boolean force, long maxCacheTime) throws IOException {
 		if(file.exists() && (force || System.currentTimeMillis() - file.lastModified() < maxCacheTime)) {
-			try {
-				return new FileInputStream(file);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			return new FileInputStream(file);
 		}
 		return null;
 	}
 
-	private static InputStream loadRemote(String url) {
-		try {
-			URL apiURL = new URL(url);
-			return apiURL.openStream();
-		} catch (IOException e) {
-			e.printStackTrace();
-			return null;
-		}
+	private static InputStream loadRemote(String url) throws IOException {
+		URL apiURL = new URL(url);
+		return apiURL.openStream();
 	}
 
 	public static File getCacheDirectory() {
