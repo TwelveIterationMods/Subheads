@@ -1,24 +1,25 @@
 package net.blay09.mods.twitchcrumbs;
 
-import cpw.mods.fml.common.FMLCommonHandler;
-import cpw.mods.fml.common.Mod;
-import cpw.mods.fml.common.event.FMLInitializationEvent;
-import cpw.mods.fml.common.event.FMLPostInitializationEvent;
-import cpw.mods.fml.common.event.FMLPreInitializationEvent;
-import cpw.mods.fml.common.event.FMLServerStartingEvent;
-import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import cpw.mods.fml.common.gameevent.TickEvent;
 import net.minecraft.command.CommandBase;
+import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.command.WrongUsageException;
-import net.minecraft.util.ChatComponentText;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.config.Configuration;
+import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.*;
@@ -75,13 +76,13 @@ public class Twitchcrumbs {
 			}
 
 			@Override
-			public void processCommand(ICommandSender sender, String[] args) {
+			public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
 				if (args.length != 1) {
 					throw new WrongUsageException(getCommandUsage(sender));
 				}
 				if (args[0].equals("reload")) {
 					int registered = reloadTwitchCrumbs();
-					sender.addChatMessage(new ChatComponentText("Reloaded Twitchcrumbs - registered " + registered + " users."));
+					sender.addChatMessage(new TextComponentString("Reloaded Twitchcrumbs - registered " + registered + " users."));
 					return;
 				}
 				throw new WrongUsageException(getCommandUsage(sender));
@@ -97,14 +98,14 @@ public class Twitchcrumbs {
 	@SubscribeEvent
 	public void tick(TickEvent.ServerTickEvent event) {
 		if (firstTick) { // We do this here instead of in init to forcefully skip Headcrumb's initialization code. Creating all the head stacks, adding all the dungeon loot and all that other stuff is too much for huge lists like SF2.5.
-			reloadTwitchCrumbs();
 			firstTick = false;
+			reloadTwitchCrumbs();
 		}
 		if (autoReload) {
 			tickTimer++;
 			if (tickTimer > reloadInterval) {
-				reloadTwitchCrumbs();
 				tickTimer = 0;
+				reloadTwitchCrumbs();
 			}
 		}
 	}
@@ -129,10 +130,11 @@ public class Twitchcrumbs {
 		// Append our whitelist names to the "others" list in Headcrumbs instead
 		try {
 			Class headcrumbs = Class.forName("ganymedes01.headcrumbs.Headcrumbs");
-			if (list.size() > 50) { // Calm down now.
-				Field hidePlayerHeadsFromTabField = headcrumbs.getField("hidePlayerHeadsFromTab");
-				hidePlayerHeadsFromTabField.set(null, true);
-			}
+			// ## Option was removed in 1.9.4:
+//			if (list.size() > 50) { // Calm down now.
+//				Field hidePlayerHeadsFromTabField = headcrumbs.getField("hidePlayerHeadsFromTab");
+//				hidePlayerHeadsFromTabField.set(null, true);
+//			}
 			Field othersField = headcrumbs.getField("others");
 			String[] others = (String[]) othersField.get(null);
 			if (originalNames == null) {
