@@ -8,6 +8,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.config.Configuration;
+import net.minecraftforge.fml.client.FMLClientHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -16,6 +17,7 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.fml.relauncher.Side;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -24,7 +26,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
 
 @Mod(modid = "twitchcrumbs", name = "Twitchcrumbs", dependencies = "required-after:headcrumbs")
 public class Twitchcrumbs {
@@ -39,6 +44,8 @@ public class Twitchcrumbs {
 	private int cacheTime;
 	private int reloadInterval;
 	private boolean firstTick = true;
+
+	private Thread thread;
 
 	private String[] originalNames;
 	private int tickTimer;
@@ -78,13 +85,13 @@ public class Twitchcrumbs {
 			}
 
 			@Override
-			public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
+			public void execute(MinecraftServer server, final ICommandSender sender, String[] args) throws CommandException {
 				if (args.length != 1) {
 					throw new WrongUsageException(getUsage(sender));
 				}
 				if (args[0].equals("reload")) {
-					int registered = reloadTwitchCrumbs();
-					sender.sendMessage(new TextComponentString("Reloaded Twitchcrumbs - registered " + registered + " users."));
+					sender.sendMessage(new TextComponentString("Reloading Twitchcrumbs"));
+					reloadTwitchCrumbs(registered -> sender.sendMessage(new TextComponentString("Reloaded Twitchcrumbs - registered " + registered + " users.")));
 					return;
 				}
 				throw new WrongUsageException(getUsage(sender));
@@ -106,32 +113,50 @@ public class Twitchcrumbs {
 	public void tick(TickEvent.ServerTickEvent event) {
 		if (firstTick) { // We do this here instead of in init to forcefully skip Headcrumb's initialization code. Creating all the head stacks, adding all the dungeon loot and all that other stuff is too much for huge lists like SF2.5.
 			firstTick = false;
-			reloadTwitchCrumbs();
+			reloadTwitchCrumbs(null);
 		}
 		if (autoReload) {
 			tickTimer++;
 			if (tickTimer > reloadInterval) {
 				tickTimer = 0;
-				reloadTwitchCrumbs();
+				reloadTwitchCrumbs(null);
 			}
 		}
 	}
 
 	@SuppressWarnings("unchecked")
-	public int reloadTwitchCrumbs() {
-		// Load the whitelist from all sources
-		List<String> list = new ArrayList<>();
-		for (String source : whitelists) {
-			try (BufferedReader reader = new BufferedReader(new InputStreamReader(CachedAPI.loadCachedAPI(source, source.replace(":", "_").replace("/", "_").replace("?", "_"), 1000 * cacheTime)))) {
-				String line;
-				while ((line = reader.readLine()) != null) {
-					list.add(line);
+	public void reloadTwitchCrumbs(Consumer<Integer> reloadDone) {
+		if (thread != null) return;
+		thread = new Thread(() -> {
+			// Load the whitelist from all sources
+			List<String> list = new ArrayList<>();
+			for (String source : whitelists) {
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(CachedAPI.loadCachedAPI(source, source.replace(":", "_").replace("/", "_").replace("?", "_"), 1000 * cacheTime)))) {
+					String line;
+					while ((line = reader.readLine()) != null) {
+						list.add(line);
+					}
+				} catch (IOException e) {
+					logger.error("Failed to load whitelist from source {}: {}", source, e);
 				}
-			} catch (IOException e) {
-				logger.error("Failed to load whitelist from source {}: {}", source, e);
 			}
-		}
+			Runnable update = () -> {
+				int reg = updateData(list);
+				if (reloadDone != null) {
+					reloadDone.accept(reg);
+				}
+				thread = null;
+			};
+			if (FMLCommonHandler.instance().getEffectiveSide() == Side.CLIENT) {
+				FMLClientHandler.instance().getClient().addScheduledTask(update);
+			} else {
+				FMLCommonHandler.instance().getMinecraftServerInstance().addScheduledTask(update);
+			}
+		});
+		thread.start();
+	}
 
+	private int updateData(List<String> list) {
 		logger.info("Registering {} Twitchcrumbs users...", list.size());
 		// We don't use Headcrumb's IMC API because it's inefficient and requires mod-sent option to be enabled
 		// Append our whitelist names to the "others" list in Headcrumbs instead
